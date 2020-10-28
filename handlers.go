@@ -24,6 +24,7 @@ import (
 	"html"
 	"io"
 	"io/ioutil"
+	"math/rand"
 	"net"
 	"net/http"
 	"net/smtp"
@@ -219,6 +220,44 @@ func adminUnbanUser(w http.ResponseWriter, r *http.Request) {
 	cidr := getCIDR(ip)
 	db.Exec("DELETE FROM bans WHERE user = ? OR (cidr = 0 AND ip = ?) OR (cidr = 1 AND ip = ?)", userID, ip, cidr)
 	w.Write([]byte("Success!"))
+}
+
+// Create a random sequence of letters: for adminMakeInvite
+func randSeq(n int) string {
+
+	var letters = []rune("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ")
+
+	b := make([]rune, n)
+	for i := range b {
+		b[i] = letters[rand.Intn(len(letters))]
+	}
+	return string(b)
+}
+
+// Make an invite.
+func adminMakeInvite(w http.ResponseWriter, r *http.Request) {
+	currentUser, success := doSession(w, r)
+	if !success {
+		return
+	}
+	if len(currentUser.Username) == 0 {
+		http.Redirect(w, r, "/login", 301)
+		return
+	}
+	if currentUser.Level < admin.Manage.MinimumLevel {
+		http.Redirect(w, r, "/", 301)
+		return
+	}
+
+	code := r.FormValue("code")
+	if code == "" {
+		rand.Seed(time.Now().UnixNano())
+		code = randSeq(10)
+	}
+
+	url := "This code can be used to signup. The url is: [domain]/signup?invite=" + code
+	db.Exec("INSERT INTO invites (code) VALUES ( ? );", code)
+	w.Write([]byte(url))
 }
 
 // Block a user.
@@ -5284,6 +5323,26 @@ func signup(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if r.Method != "POST" {
+		
+		// This chunk of code checks invite against DB and errors if page
+		// is loaded without any code or no valid code.
+
+		invite := r.URL.Query().Get("invite")
+		if invite != "" {
+			// Code isnt blank
+
+			var inviteCount int
+			db.QueryRow("SELECT COUNT(*) FROM invites WHERE code = ?", invite).Scan(&inviteCount)
+			if !(inviteCount > 0) {
+				http.Error(w, "Invalid signup code.", http.StatusBadRequest)
+				return
+			}
+		} else {
+			// Code is blank
+
+			http.Error(w, "No signup code.", http.StatusBadRequest)
+			return
+		}
 		var currentUser user
 		currentUser.CSRFToken = csrf.Token(r)
 		var data = map[string]interface{}{
@@ -5295,6 +5354,26 @@ func signup(w http.ResponseWriter, r *http.Request) {
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 		}
+		return
+	}
+	
+	// This chunk of code checks invite against DB and errors if signup
+	// is pressed without any code or no valid code.
+
+	invite := r.URL.Query().Get("invite")
+	if invite != "" {
+		// Code isnt blank
+
+		var inviteCount int
+		db.QueryRow("SELECT COUNT(*) FROM invites WHERE code = ?", invite).Scan(&inviteCount)
+		if !(inviteCount > 0) {
+			http.Error(w, "Invalid signup code.", http.StatusBadRequest)
+			return
+		}
+	} else {
+		// Code is blank
+
+		http.Error(w, "No signup code.", http.StatusBadRequest)
 		return
 	}
 
@@ -5458,6 +5537,9 @@ func signup(w http.ResponseWriter, r *http.Request) {
 					http.Error(w, err.Error(), http.StatusInternalServerError)
 					return
 				}
+				
+				// The user has signed up. This line deletes the invite code so it cannot be used again.
+				db.QueryRow("DELETE FROM invites WHERE code = ?", invite)
 
 				session := sessions.Start(w, r)
 				session.Set("username", users.Username)

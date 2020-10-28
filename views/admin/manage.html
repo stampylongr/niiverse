@@ -1,7 +1,7 @@
 {{if .Pjax}}
     {{template "header.html" .}}
 {{else}}
-    <title>{{.Title}} - Niiverse</title>
+    <title>{{.Title}} - Indigo</title>
 {{end}}
 <div id="main-body">
     <div id="sidebar">
@@ -47,7 +47,14 @@
                 <p class="settings-label">Unban User</p>
                 <input type="text" name="username" placeholder="Username"><br>
                 <button class="black-button" type="submit">Do it</button>
+            </form><br>
+            <form class="setting-form" method="post" action="/admin/manage/makeinvite">
+                <input type="hidden" name="csrfmiddlewaretoken" value="{{.CurrentUser.CSRFToken}}">
+                            <p class="settings-label">Generate Invite</p>
+                            <input type="text" name="code" placeholder="Random if left blank"><br>
+                            <button class="black-button" type="submit">Do it</button>
             </form>
+
         </div>
     </div>
 </div>

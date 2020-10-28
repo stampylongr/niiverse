@@ -256,6 +256,8 @@ func main() {
 	r.HandleFunc("/admin/manage", showAdminManagerList).Methods("GET")
 	r.HandleFunc("/admin/manage/bantemp", adminBanUser).Methods("POST")
 	r.HandleFunc("/admin/manage/unbantemp", adminUnbanUser).Methods("POST")
+        r.HandleFunc("/admin/manage/unbantemp", adminUnbanUser).Methods("POST")
+        r.HandleFunc("/admin/manage/makeinvite", adminMakeInvite).Methods("POST")
 	//r.HandleFunc("/admin/manage/{table}", showAdminManager).Methods("GET")
 	//r.HandleFunc("/admin/manage/{table}/{id:[0-9]+}", showAdminEditor).Methods("GET", "POST")
 	r.HandleFunc("/admin/settings", showAdminSettings).Methods("GET", "POST")
